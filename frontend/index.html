@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Document Assistant</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="layout">
+
+    <!-- Left panel: upload + document selection -->
+    <aside class="sidebar">
+      <h1 class="app-title">Document Assistant</h1>
+
+      <div id="dropzone" class="dropzone" role="button" tabindex="0"
+           aria-label="Drop a file here or click to browse">
+        <div class="dropzone-icon">&#128196;</div>
+        <p>Drop a PDF, DOCX, or TXT file here</p>
+        <p class="dropzone-sub">or <label for="fileInput" class="browse-link">browse</label></p>
+        <input type="file" id="fileInput" accept=".pdf,.docx,.txt" hidden />
+      </div>
+
+      <div id="uploadStatus" class="status-bar" role="status" aria-live="polite"></div>
+
+      <div class="doc-controls">
+        <label class="field-label" for="docSelect">Ask about:</label>
+        <select id="docSelect">
+          <option value="">All documents</option>
+        </select>
+        <button id="deleteBtn" class="btn btn-danger" disabled>Delete selected</button>
+      </div>
+    </aside>
+
+    <!-- Center panel: summary -->
+    <section class="summary-panel">
+      <h2 class="panel-title">Document Summary</h2>
+      <div id="summaryContent">
+        <p class="placeholder">Upload a document to see its summary here.</p>
+      </div>
+    </section>
+
+    <!-- Right panel: chat -->
+    <section class="chat-panel">
+      <h2 class="panel-title">Ask a Question</h2>
+      <div id="chatHistory" class="chat-history" aria-live="polite"></div>
+      <div class="chat-input-bar">
+        <textarea
+          id="questionInput"
+          placeholder="Ask a question about your document…"
+          rows="2"
+          aria-label="Your question"
+        ></textarea>
+        <button id="sendBtn" class="btn btn-primary">Send</button>
+      </div>
+    </section>
+
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>

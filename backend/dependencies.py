@@ -1,0 +1,20 @@
+from functools import lru_cache
+from services.embedder import Embedder
+from services.retriever import Retriever
+from services.llm import LLMService
+from config import settings
+
+
+@lru_cache()
+def get_embedder() -> Embedder:
+    return Embedder(model_name=settings.embedding_model)
+
+
+@lru_cache()
+def get_retriever() -> Retriever:
+    return Retriever(persist_path=settings.chroma_path)
+
+
+@lru_cache()
+def get_llm() -> LLMService:
+    return LLMService(model_name=settings.hf_model)
