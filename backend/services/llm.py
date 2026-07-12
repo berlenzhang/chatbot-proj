@@ -10,14 +10,6 @@ Context:
 Question: {question}
 Answer:"""
 
-SUMMARIZE_PROMPT = """\
-Summarize the following document excerpts in 2-4 paragraphs using only the information provided:
-
-{context_block}
-
-Summary:"""
-
-
 class LLMService:
     def __init__(self, model_name: str = "google/flan-t5-base"):
         self._pipeline = hf_pipeline(
@@ -25,13 +17,6 @@ class LLMService:
             model=model_name,
             truncation=True,
         )
-
-    def summarize(self, chunks: list[dict]) -> str:
-        sorted_chunks = sorted(chunks, key=lambda c: c["metadata"]["chunk_index"])
-        context_block = self._build_context_block(sorted_chunks)
-        prompt = SUMMARIZE_PROMPT.format(context_block=context_block)
-        result = self._pipeline(prompt, max_new_tokens=300)
-        return result[0]["generated_text"]
 
     def answer(self, question: str, chunks: list[dict]) -> tuple[str, list[dict]]:
         if not chunks:

@@ -5,7 +5,6 @@ from typing import Optional
 class UploadResponse(BaseModel):
     filename: str
     chunk_count: int
-    summary: str
 
 
 class QueryRequest(BaseModel):

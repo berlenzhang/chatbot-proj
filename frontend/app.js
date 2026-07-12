@@ -1,15 +1,26 @@
+import { getDocument, GlobalWorkerOptions, TextLayer } from "./vendor/pdfjs/pdf.min.mjs";
+
+GlobalWorkerOptions.workerSrc = "vendor/pdfjs/pdf.worker.min.mjs";
+
 const API_BASE = "http://localhost:8000";
 
 // ── Element refs ──────────────────────────────────────────────────────────────
 const dropzone      = document.getElementById("dropzone");
 const fileInput     = document.getElementById("fileInput");
 const statusBar     = document.getElementById("uploadStatus");
-const summaryDiv    = document.getElementById("summaryContent");
+const viewerContent = document.getElementById("viewerContent");
 const docSelect     = document.getElementById("docSelect");
 const deleteBtn     = document.getElementById("deleteBtn");
 const chatHistory   = document.getElementById("chatHistory");
 const questionInput = document.getElementById("questionInput");
 const sendBtn       = document.getElementById("sendBtn");
+
+// Filename currently loaded in the viewer, or null if nothing is shown.
+// Used to gate citation navigation to the doc that's actually on screen.
+let currentViewerFilename = null;
+let currentPdfDoc = null;      // PDFDocumentProxy, only set when viewing a PDF
+let currentPdfPageNum = 1;
+let currentRawText = null;     // full text content, only set when viewing TXT/DOCX
 
 // ── Upload ────────────────────────────────────────────────────────────────────
 dropzone.addEventListener("dragover",  e => { e.preventDefault(); dropzone.classList.add("drag-over"); });
@@ -42,8 +53,8 @@ async function handleFile(file) {
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || "Upload failed.");
     setStatus(`Indexed ${data.chunk_count} chunks from "${data.filename}".`, "success");
-    renderSummary(data.summary);
     addToSelector(data.filename);
+    showActiveDocument(data.filename);
   } catch (err) {
     setStatus(`Error: ${err.message}`, "error");
   } finally {
@@ -52,12 +63,189 @@ async function handleFile(file) {
   }
 }
 
-function renderSummary(text) {
-  summaryDiv.innerHTML = text
-    .split(/\n+/)
-    .filter(Boolean)
-    .map(p => `<p>${escapeHtml(p)}</p>`)
-    .join("");
+async function showActiveDocument(filename) {
+  currentViewerFilename = filename;
+  currentPdfDoc = null;
+  currentRawText = null;
+
+  if (!filename) {
+    viewerContent.innerHTML = '<p class="placeholder">Upload a document to preview it here.</p>';
+    return;
+  }
+
+  const ext = filename.split(".").pop().toLowerCase();
+  const url = `${API_BASE}/documents/${encodeURIComponent(filename)}/file`;
+
+  if (ext === "pdf") {
+    viewerContent.innerHTML = `
+      <div class="pdf-nav">
+        <button id="prevPageBtn" class="btn-page" type="button">&lsaquo;</button>
+        <span id="pageIndicator"></span>
+        <button id="nextPageBtn" class="btn-page" type="button">&rsaquo;</button>
+      </div>
+      <div class="pdf-page-wrap">
+        <canvas id="pdfCanvas"></canvas>
+        <div id="pdfTextLayer" class="textLayer"></div>
+      </div>`;
+    document.getElementById("prevPageBtn").addEventListener("click", () => renderPdfPage(currentPdfPageNum - 1));
+    document.getElementById("nextPageBtn").addEventListener("click", () => renderPdfPage(currentPdfPageNum + 1));
+    try {
+      currentPdfDoc = await getDocument(url).promise;
+      await renderPdfPage(1);
+    } catch (err) {
+      viewerContent.innerHTML = `<p class="placeholder">Couldn't load preview: ${escapeHtml(err.message)}</p>`;
+    }
+  } else {
+    try {
+      const res = await fetch(url);
+      currentRawText = await res.text();
+      viewerContent.innerHTML = '<pre id="textViewer" class="text-viewer"></pre>';
+      document.getElementById("textViewer").textContent = currentRawText;
+    } catch (err) {
+      viewerContent.innerHTML = `<p class="placeholder">Couldn't load preview: ${escapeHtml(err.message)}</p>`;
+    }
+  }
+}
+
+async function renderPdfPage(pageNum, highlightExcerpt = null) {
+  if (!currentPdfDoc) return;
+  pageNum = Math.min(Math.max(pageNum, 1), currentPdfDoc.numPages);
+  currentPdfPageNum = pageNum;
+  document.getElementById("pageIndicator").textContent = `Page ${pageNum} of ${currentPdfDoc.numPages}`;
+
+  const page = await currentPdfDoc.getPage(pageNum);
+  const viewport = page.getViewport({ scale: 1.3 });
+
+  const canvas = document.getElementById("pdfCanvas");
+  canvas.width = viewport.width;
+  canvas.height = viewport.height;
+  const wrap = document.querySelector(".pdf-page-wrap");
+  wrap.style.width = `${viewport.width}px`;
+  wrap.style.height = `${viewport.height}px`;
+  await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
+
+  const textLayerDiv = document.getElementById("pdfTextLayer");
+  textLayerDiv.innerHTML = "";
+  textLayerDiv.style.setProperty("--scale-factor", viewport.scale);
+  const textContent = await page.getTextContent();
+  const textLayer = new TextLayer({ textContentSource: textContent, container: textLayerDiv, viewport });
+  await textLayer.render();
+
+  if (highlightExcerpt) {
+    highlightInPdfTextLayer(textLayerDiv, textContent, highlightExcerpt);
+  }
+}
+
+// Collapses whitespace AND invisible formatting characters (zero-width space/
+// joiners, BOM) that PDF exporters often glue onto bullet markers — these show
+// up in server-extracted excerpt text but not in pdf.js's own text extraction,
+// so they must be stripped for the two to line up. Returns a mapping from each
+// normalized-string index back to its index in the original `text`, so a match
+// found in the normalized string can be located in the original.
+const INVISIBLE_OR_WHITESPACE = new RegExp("[\\s\\u200B\\u200C\\u200D\\uFEFF]");
+
+function buildNormalizedMap(text) {
+  let norm = "";
+  const map = []; // map[normIndex] = index into `text`
+  let inGap = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (INVISIBLE_OR_WHITESPACE.test(ch)) {
+      if (!inGap) {
+        norm += " ";
+        map.push(i);
+        inGap = true;
+      }
+    } else {
+      norm += ch;
+      map.push(i);
+      inGap = false;
+    }
+  }
+  return { norm, map };
+}
+
+function normalizeWhitespace(str) {
+  return buildNormalizedMap(str).norm.trim();
+}
+
+function highlightInPdfTextLayer(container, textContent, excerpt) {
+  const items = textContent.items;
+  let joined = "";
+  const itemRanges = []; // itemRanges[i] = {start, end} within `joined` for items[i]
+  for (const item of items) {
+    const start = joined.length;
+    joined += item.str;
+    itemRanges.push({ start, end: joined.length });
+    // Only insert a break at an actual line boundary. Items are sometimes split
+    // sub-word (e.g. a "fi" ligature glyph split from the rest of "field") with
+    // no real space between them — unconditionally inserting one there would
+    // corrupt the word and break the excerpt match.
+    if (item.hasEOL) joined += "\n";
+  }
+
+  const { norm, map } = buildNormalizedMap(joined);
+  const anchor = normalizeWhitespace(excerpt).slice(0, 120);
+  if (!anchor) return;
+  const normIdx = norm.indexOf(anchor);
+  if (normIdx === -1) return; // no match on this page — leave unhighlighted, not an error
+  const rawStart = map[normIdx];
+  const rawEnd = map[normIdx + anchor.length - 1] + 1;
+
+  const spans = container.querySelectorAll("span");
+  let firstMatch = null;
+  itemRanges.forEach((range, i) => {
+    if (range.end > rawStart && range.start < rawEnd) {
+      const span = spans[i];
+      if (span) {
+        span.classList.add("chunk-highlight");
+        if (!firstMatch) firstMatch = span;
+      }
+    }
+  });
+  if (firstMatch) {
+    firstMatch.scrollIntoView({ block: "center", behavior: "smooth" });
+  }
+}
+
+function highlightInText(rawText, excerpt) {
+  const { norm, map } = buildNormalizedMap(rawText);
+  const anchor = normalizeWhitespace(excerpt).slice(0, 120);
+  if (!anchor) return null;
+  const idx = norm.indexOf(anchor);
+  if (idx === -1) return null;
+  return { start: map[idx], end: map[idx + anchor.length - 1] + 1 };
+}
+
+function renderTextViewer(rawText, highlightExcerpt = null) {
+  const textViewer = document.getElementById("textViewer");
+  if (!textViewer) return;
+
+  if (!highlightExcerpt) {
+    textViewer.textContent = rawText;
+    return;
+  }
+  const range = highlightInText(rawText, highlightExcerpt);
+  if (!range) {
+    textViewer.textContent = rawText;
+    return;
+  }
+  textViewer.innerHTML =
+    escapeHtml(rawText.slice(0, range.start)) +
+    `<mark class="chunk-highlight" id="chunkHighlight">${escapeHtml(rawText.slice(range.start, range.end))}</mark>` +
+    escapeHtml(rawText.slice(range.end));
+  document.getElementById("chunkHighlight").scrollIntoView({ block: "center", behavior: "smooth" });
+}
+
+function navigateViewerTo(source, page, excerpt) {
+  if (source !== currentViewerFilename) return;  // ignore citations for a different doc
+  if (currentPdfDoc) {
+    if (!page) return;                            // PDFs need a page to know where to render
+    renderPdfPage(page, excerpt);
+  } else if (currentRawText !== null) {
+    if (!excerpt) return;                         // TXT/DOCX have no page concept (always 0)
+    renderTextViewer(currentRawText, excerpt);
+  }
 }
 
 function addToSelector(filename) {
@@ -77,6 +265,7 @@ function setStatus(msg, type) {
 // ── Document selector & delete ────────────────────────────────────────────────
 docSelect.addEventListener("change", () => {
   deleteBtn.disabled = !docSelect.value;
+  showActiveDocument(docSelect.value || null);
 });
 
 deleteBtn.addEventListener("click", async () => {
@@ -92,7 +281,7 @@ deleteBtn.addEventListener("click", async () => {
     docSelect.value = "";
     deleteBtn.disabled = true;
     setStatus(`Deleted "${filename}".`, "success");
-    summaryDiv.innerHTML = '<p class="placeholder">Upload a document to see its summary here.</p>';
+    showActiveDocument(null);
   } catch (err) {
     setStatus(`Delete failed: ${err.message}`, "error");
   }
@@ -102,6 +291,12 @@ deleteBtn.addEventListener("click", async () => {
 sendBtn.addEventListener("click", sendMessage);
 questionInput.addEventListener("keydown", e => {
   if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+});
+
+chatHistory.addEventListener("click", e => {
+  const li = e.target.closest(".citations li");
+  if (!li) return;
+  navigateViewerTo(li.dataset.source, Number(li.dataset.page), li.dataset.excerpt);
 });
 
 async function sendMessage() {
@@ -124,6 +319,7 @@ async function sendMessage() {
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || "Query failed.");
     updateBubble(pendingId, data.answer, data.citations);
+    navigateViewerTo(data.citations?.[0]?.source, data.citations?.[0]?.page, data.citations?.[0]?.excerpt);
   } catch (err) {
     updateBubble(pendingId, `Error: ${err.message}`, []);
   }
@@ -159,7 +355,7 @@ function renderCitations(citations) {
   if (!citations || citations.length === 0) return "";
   const items = citations.map(c => {
     const loc = c.page ? `Page ${c.page}` : "No page info";
-    return `<li>
+    return `<li data-source="${escapeHtml(c.source)}" data-page="${c.page || 0}" data-excerpt="${escapeHtml(c.excerpt)}">
       <strong>${escapeHtml(c.source)}</strong> — ${loc} (chunk&nbsp;${c.chunk_index})
       <em>${escapeHtml(c.excerpt)}</em>
     </li>`;

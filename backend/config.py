@@ -15,7 +15,6 @@ class Settings(BaseSettings):
     chunk_overlap: int = 64
     top_k: int = 5
     similarity_threshold: float = 1.5
-    summary_chunk_count: int = 8
 
     class Config:
         env_file = str(_PROJECT_ROOT / ".env")

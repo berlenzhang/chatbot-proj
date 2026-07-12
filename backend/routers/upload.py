@@ -5,7 +5,7 @@ import aiofiles
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 
 from config import settings
-from dependencies import get_embedder, get_llm, get_retriever
+from dependencies import get_embedder, get_retriever
 from models.schemas import UploadResponse
 from services.chunker import chunk_document
 from services.parser import parse_document
@@ -20,7 +20,6 @@ async def upload_document(
     file: UploadFile = File(...),
     embedder=Depends(get_embedder),
     retriever=Depends(get_retriever),
-    llm=Depends(get_llm),
 ):
     ext = Path(file.filename).suffix.lower()
     if ext not in ALLOWED_EXTENSIONS:
@@ -52,15 +51,9 @@ async def upload_document(
         embeddings = embedder.embed(texts)
         retriever.add_chunks(chunks, embeddings)
 
-        summary_chunks = sorted(chunks, key=lambda c: c["metadata"]["chunk_index"])[
-            : settings.summary_chunk_count
-        ]
-        summary = llm.summarize(summary_chunks)
-
         return UploadResponse(
             filename=file.filename,
             chunk_count=len(chunks),
-            summary=summary,
         )
     except HTTPException:
         raise
