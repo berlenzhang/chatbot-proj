@@ -7,11 +7,16 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div class="layout">
+  <div class="layout" id="layout">
+
+    <button id="sidebarOpenBtn" class="sidebar-open-btn" type="button" title="Show sidebar" hidden>&#9776;</button>
 
     <!-- Left panel: upload + document selection -->
-    <aside class="sidebar">
-      <h1 class="app-title">Document Assistant</h1>
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <h1 class="app-title">Document Assistant</h1>
+        <button id="sidebarCloseBtn" class="sidebar-close-btn" type="button" title="Hide sidebar">&times;</button>
+      </div>
 
       <div id="dropzone" class="dropzone" role="button" tabindex="0"
            aria-label="Drop a file here or click to browse">
@@ -33,15 +38,19 @@
     </aside>
 
     <!-- Center panel: document preview -->
-    <section class="viewer-panel">
+    <section class="viewer-panel" id="viewerPanel">
       <h2 class="panel-title">Document Preview</h2>
       <div id="viewerContent" class="viewer-content">
         <p class="placeholder">Upload a document to preview it here.</p>
       </div>
     </section>
 
+    <!-- Drag handle between preview and chat panels -->
+    <div id="panelResizer" class="panel-resizer" role="separator" aria-orientation="vertical"
+         aria-label="Resize document preview and chat panels" tabindex="0"></div>
+
     <!-- Right panel: chat -->
-    <section class="chat-panel">
+    <section class="chat-panel" id="chatPanel">
       <h2 class="panel-title">Ask a Question</h2>
       <div id="chatHistory" class="chat-history" aria-live="polite"></div>
       <div class="chat-input-bar">

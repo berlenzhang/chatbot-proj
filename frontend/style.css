@@ -12,13 +12,15 @@ body {
 
 /* ── Three-column layout ── */
 .layout {
-  display: grid;
-  grid-template-columns: 300px 1fr 1.4fr;
+  display: flex;
   height: 100vh;
+  position: relative;
 }
 
 /* ── Sidebar ── */
 .sidebar {
+  flex: 0 0 300px;
+  width: 300px;
   background: #1a1a2e;
   color: #e2e8f0;
   padding: 1.5rem 1.25rem;
@@ -27,12 +29,72 @@ body {
   gap: 1.25rem;
   overflow-y: auto;
 }
+.sidebar.collapsed {
+  display: none;
+}
+
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
 
 .app-title {
   font-size: 1.1rem;
   font-weight: 700;
   letter-spacing: 0.02em;
   color: #a78bfa;
+}
+
+.sidebar-close-btn {
+  background: transparent;
+  border: none;
+  color: #a0aec0;
+  font-size: 1.3rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0.15rem 0.4rem;
+  border-radius: 6px;
+  transition: background 0.15s, color 0.15s;
+}
+.sidebar-close-btn:hover {
+  background: rgba(167, 139, 250, 0.15);
+  color: #e2e8f0;
+}
+
+.sidebar-open-btn {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  z-index: 10;
+  background: #1a1a2e;
+  color: #e2e8f0;
+  border: none;
+  border-radius: 6px;
+  font-size: 1.1rem;
+  padding: 0.4rem 0.6rem;
+  cursor: pointer;
+}
+.sidebar-open-btn:hover { background: #2d3748; }
+
+/* ── Panel resizer ── */
+.panel-resizer {
+  flex: 0 0 6px;
+  width: 6px;
+  cursor: col-resize;
+  background: #e2e8f0;
+  position: relative;
+}
+.panel-resizer:hover,
+.panel-resizer:focus,
+.panel-resizer.resizing {
+  background: #a78bfa;
+  outline: none;
+}
+.layout.resizing {
+  cursor: col-resize;
+  user-select: none;
 }
 
 /* ── Drop zone ── */
@@ -125,8 +187,9 @@ select:focus { outline: 2px solid #a78bfa; }
 
 /* ── Viewer panel ── */
 .viewer-panel {
+  flex: 1 1 0;
+  min-width: 240px;
   background: #ffffff;
-  border-right: 1px solid #e2e8f0;
   padding: 1.5rem;
   overflow: hidden;
   display: flex;
@@ -215,6 +278,8 @@ select:focus { outline: 2px solid #a78bfa; }
 
 /* ── Chat panel ── */
 .chat-panel {
+  flex: 1.4 1 0;
+  min-width: 280px;
   background: #f8f9fb;
   display: flex;
   flex-direction: column;
@@ -327,11 +392,12 @@ select:focus { outline: 2px solid #a78bfa; }
 @media (max-width: 900px) {
   body { overflow: auto; }
   .layout {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto auto 1fr;
+    flex-direction: column;
     height: auto;
     min-height: 100vh;
   }
-  .sidebar { overflow: visible; }
+  .sidebar { overflow: visible; width: auto; }
+  .panel-resizer { display: none; }
+  .viewer-panel, .chat-panel { flex: none !important; width: auto !important; }
   .chat-panel { min-height: 60vh; }
 }

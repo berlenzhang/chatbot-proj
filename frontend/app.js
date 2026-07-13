@@ -14,6 +14,13 @@ const deleteBtn     = document.getElementById("deleteBtn");
 const chatHistory   = document.getElementById("chatHistory");
 const questionInput = document.getElementById("questionInput");
 const sendBtn       = document.getElementById("sendBtn");
+const layout         = document.getElementById("layout");
+const sidebar        = document.getElementById("sidebar");
+const sidebarCloseBtn = document.getElementById("sidebarCloseBtn");
+const sidebarOpenBtn  = document.getElementById("sidebarOpenBtn");
+const viewerPanel    = document.getElementById("viewerPanel");
+const chatPanel      = document.getElementById("chatPanel");
+const panelResizer   = document.getElementById("panelResizer");
 
 // Filename currently loaded in the viewer, or null if nothing is shown.
 // Used to gate citation navigation to the doc that's actually on screen.
@@ -21,6 +28,65 @@ let currentViewerFilename = null;
 let currentPdfDoc = null;      // PDFDocumentProxy, only set when viewing a PDF
 let currentPdfPageNum = 1;
 let currentRawText = null;     // full text content, only set when viewing TXT/DOCX
+
+// ── Sidebar collapse ──────────────────────────────────────────────────────────
+sidebarCloseBtn.addEventListener("click", () => {
+  sidebar.classList.add("collapsed");
+  sidebarOpenBtn.hidden = false;
+});
+sidebarOpenBtn.addEventListener("click", () => {
+  sidebar.classList.remove("collapsed");
+  sidebarOpenBtn.hidden = true;
+});
+
+// ── Panel resizer (drag to resize preview vs. chat panels) ────────────────────
+const MIN_PANEL_WIDTH = 240;
+
+function resizePanels(clientX) {
+  const totalWidth = viewerPanel.getBoundingClientRect().width + chatPanel.getBoundingClientRect().width;
+
+  let viewerWidth = clientX - viewerPanel.getBoundingClientRect().left;
+  viewerWidth = Math.max(MIN_PANEL_WIDTH, Math.min(viewerWidth, totalWidth - MIN_PANEL_WIDTH));
+  const ratio = viewerWidth / totalWidth;
+
+  // Store the split as flex-grow ratios (basis 0), not fixed pixel widths, so the
+  // two panels always divide up whatever space they're given — including the extra
+  // width freed when the sidebar is collapsed — instead of leaving it as a gap.
+  viewerPanel.style.flex = `${ratio} 1 0%`;
+  chatPanel.style.flex = `${1 - ratio} 1 0%`;
+}
+
+function startResize(e) {
+  e.preventDefault();
+  layout.classList.add("resizing");
+  panelResizer.classList.add("resizing");
+
+  function onMove(ev) {
+    const clientX = ev.touches ? ev.touches[0].clientX : ev.clientX;
+    resizePanels(clientX);
+  }
+  function onEnd() {
+    layout.classList.remove("resizing");
+    panelResizer.classList.remove("resizing");
+    document.removeEventListener("mousemove", onMove);
+    document.removeEventListener("mouseup", onEnd);
+    document.removeEventListener("touchmove", onMove);
+    document.removeEventListener("touchend", onEnd);
+  }
+  document.addEventListener("mousemove", onMove);
+  document.addEventListener("mouseup", onEnd);
+  document.addEventListener("touchmove", onMove);
+  document.addEventListener("touchend", onEnd);
+}
+
+panelResizer.addEventListener("mousedown", startResize);
+panelResizer.addEventListener("touchstart", startResize);
+panelResizer.addEventListener("keydown", e => {
+  const step = 20;
+  const viewerRect = viewerPanel.getBoundingClientRect();
+  if (e.key === "ArrowLeft") resizePanels(viewerRect.right - step);
+  else if (e.key === "ArrowRight") resizePanels(viewerRect.right + step);
+});
 
 // ── Upload ────────────────────────────────────────────────────────────────────
 dropzone.addEventListener("dragover",  e => { e.preventDefault(); dropzone.classList.add("drag-over"); });
