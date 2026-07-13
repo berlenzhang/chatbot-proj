@@ -13,27 +13,31 @@
 
     <!-- Left panel: upload + document selection -->
     <aside class="sidebar" id="sidebar">
-      <div class="sidebar-header">
-        <h1 class="app-title">Document Assistant</h1>
-        <button id="sidebarCloseBtn" class="sidebar-close-btn" type="button" title="Hide sidebar">&times;</button>
-      </div>
+      <div class="sidebar-inner">
+        <div class="sidebar-header">
+          <h1 class="app-title">Document Assistant</h1>
+          <button id="sidebarCloseBtn" class="sidebar-close-btn" type="button" title="Hide sidebar">&times;</button>
+        </div>
 
-      <div id="dropzone" class="dropzone" role="button" tabindex="0"
-           aria-label="Drop a file here or click to browse">
-        <div class="dropzone-icon">&#128196;</div>
-        <p>Drop a PDF, DOCX, or TXT file here</p>
-        <p class="dropzone-sub">or <label for="fileInput" class="browse-link">browse</label></p>
-        <input type="file" id="fileInput" accept=".pdf,.docx,.txt" hidden />
-      </div>
+        <p class="start-here">&#9758; Upload a document</p>
 
-      <div id="uploadStatus" class="status-bar" role="status" aria-live="polite"></div>
+        <div id="dropzone" class="dropzone" role="button" tabindex="0"
+             aria-label="Drop a file here or click to browse">
+          <div class="dropzone-icon">&#128196;</div>
+          <p>Drop a PDF, DOCX, or TXT file here</p>
+          <p class="dropzone-sub">or <label for="fileInput" class="browse-link">browse</label></p>
+          <input type="file" id="fileInput" accept=".pdf,.docx,.txt" hidden />
+        </div>
 
-      <div class="doc-controls">
-        <label class="field-label" for="docSelect">Ask about:</label>
-        <select id="docSelect">
-          <option value="">All documents</option>
-        </select>
-        <button id="deleteBtn" class="btn btn-danger" disabled>Delete selected</button>
+        <div id="uploadStatus" class="status-bar" role="status" aria-live="polite"></div>
+
+        <div class="doc-controls">
+          <label class="field-label" for="docSelect">Ask about:</label>
+          <select id="docSelect">
+            <option value="">All documents</option>
+          </select>
+          <button id="deleteBtn" class="btn btn-danger" disabled>Delete selected</button>
+        </div>
       </div>
     </aside>
 

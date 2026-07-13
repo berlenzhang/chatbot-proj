@@ -146,7 +146,9 @@ async function showActiveDocument(filename) {
     viewerContent.innerHTML = `
       <div class="pdf-nav">
         <button id="prevPageBtn" class="btn-page" type="button">&lsaquo;</button>
-        <span id="pageIndicator"></span>
+        <span class="pdf-nav-label">Page</span>
+        <input id="pageInput" class="page-input" type="number" min="1" inputmode="numeric" aria-label="Go to page" />
+        <span class="pdf-nav-label" id="pageTotalLabel"></span>
         <button id="nextPageBtn" class="btn-page" type="button">&rsaquo;</button>
       </div>
       <div class="pdf-page-wrap">
@@ -155,8 +157,22 @@ async function showActiveDocument(filename) {
       </div>`;
     document.getElementById("prevPageBtn").addEventListener("click", () => renderPdfPage(currentPdfPageNum - 1));
     document.getElementById("nextPageBtn").addEventListener("click", () => renderPdfPage(currentPdfPageNum + 1));
+    const pageInput = document.getElementById("pageInput");
+    const jumpToTypedPage = () => {
+      const target = parseInt(pageInput.value, 10);
+      if (Number.isNaN(target)) {
+        pageInput.value = currentPdfPageNum;
+        return;
+      }
+      renderPdfPage(target);
+    };
+    pageInput.addEventListener("keydown", e => {
+      if (e.key === "Enter") { e.preventDefault(); jumpToTypedPage(); pageInput.blur(); }
+    });
+    pageInput.addEventListener("blur", jumpToTypedPage);
     try {
       currentPdfDoc = await getDocument(url).promise;
+      pageInput.max = currentPdfDoc.numPages;
       await renderPdfPage(1);
     } catch (err) {
       viewerContent.innerHTML = `<p class="placeholder">Couldn't load preview: ${escapeHtml(err.message)}</p>`;
@@ -177,7 +193,8 @@ async function renderPdfPage(pageNum, highlightExcerpt = null) {
   if (!currentPdfDoc) return;
   pageNum = Math.min(Math.max(pageNum, 1), currentPdfDoc.numPages);
   currentPdfPageNum = pageNum;
-  document.getElementById("pageIndicator").textContent = `Page ${pageNum} of ${currentPdfDoc.numPages}`;
+  document.getElementById("pageInput").value = pageNum;
+  document.getElementById("pageTotalLabel").textContent = `of ${currentPdfDoc.numPages}`;
 
   const page = await currentPdfDoc.getPage(pageNum);
   const viewport = page.getViewport({ scale: 1.3 });
