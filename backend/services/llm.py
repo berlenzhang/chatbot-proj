@@ -1,8 +1,10 @@
 from transformers import pipeline as hf_pipeline
 
 ANSWER_PROMPT = """\
-Answer the question using only the context below. \
-If the answer is not in the context, say "I don't know."
+Answer the question in 3 to 5 complete sentences, using only the information \
+in the context below. Do not answer with a single word or a sentence fragment; \
+write full, explanatory sentences. If the context does not contain enough \
+information to answer, respond with exactly: I don't know.
 
 Context:
 {context_block}
@@ -18,17 +20,31 @@ class LLMService:
             truncation=True,
         )
 
-    def answer(self, question: str, chunks: list[dict]) -> tuple[str, list[dict]]:
+    def answer(
+        self,
+        question: str,
+        chunks: list[dict],
+        context_chunk_count: int,
+        context_max_chars: int,
+        min_new_tokens: int,
+        max_new_tokens: int,
+        num_beams: int,
+    ) -> tuple[str, list[dict]]:
         if not chunks:
             return (
                 "I don't know. The provided document does not contain enough information to answer this question.",
                 [],
             )
-        # Use top 3 chunks; truncate each to 300 chars so the prompt fits in flan-t5's 512-token window
-        top_chunks = chunks[:3]
-        context_block = self._build_context_block(top_chunks, max_chars=300)
+        top_chunks = chunks[:context_chunk_count]
+        context_block = self._build_context_block(top_chunks, max_chars=context_max_chars)
         prompt = ANSWER_PROMPT.format(context_block=context_block, question=question)
-        result = self._pipeline(prompt, max_new_tokens=300)
+        result = self._pipeline(
+            prompt,
+            max_new_tokens=max_new_tokens,
+            min_new_tokens=min_new_tokens,
+            num_beams=num_beams,
+            no_repeat_ngram_size=3,
+        )
         answer_text = result[0]["generated_text"]
         citations = [
             {
@@ -41,16 +57,5 @@ class LLMService:
         ]
         return answer_text, citations
 
-    def _build_context_block(self, chunks: list[dict], max_chars: int = 300) -> str:
-        parts = []
-        for i, chunk in enumerate(chunks, start=1):
-            meta = chunk["metadata"]
-            page = meta.get("page")
-            page_str = str(page) if page is not None else "N/A"
-            header = (
-                f"[Excerpt {i} | Source: {meta['source']} "
-                f"| Page: {page_str} | Chunk: {meta['chunk_index']}]"
-            )
-            text = chunk["text"][:max_chars]
-            parts.append(f"{header}\n{text}")
-        return "\n\n".join(parts)
+    def _build_context_block(self, chunks: list[dict], max_chars: int) -> str:
+        return "\n\n".join(chunk["text"][:max_chars] for chunk in chunks)

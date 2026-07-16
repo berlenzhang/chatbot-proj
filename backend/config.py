@@ -15,6 +15,11 @@ class Settings(BaseSettings):
     chunk_overlap: int = 64
     top_k: int = 5
     similarity_threshold: float = 1.5
+    answer_context_chunk_count: int = 4
+    answer_context_max_chars: int = 400
+    answer_min_new_tokens: int = 32
+    answer_max_new_tokens: int = 300
+    answer_num_beams: int = 1
 
     class Config:
         env_file = str(_PROJECT_ROOT / ".env")
